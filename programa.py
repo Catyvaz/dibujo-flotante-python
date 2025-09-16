@@ -3,8 +3,8 @@ import numpy as np
 
 cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 
-celesteBajo = np.array([75, 185, 88], np.uint8)
-celesteAlto = np.array([112, 255, 255], np.uint8)
+violetaBajo = np.array([125, 50, 70], np.uint8)
+violetaAlto = np.array([155, 255, 255], np.uint8)
 
 # Colores para pintar
 colorCeleste = (255,113,82)
@@ -63,12 +63,12 @@ while True:
 	cv2.circle(frame,(615,25),11,(0,0,0),-1)
 	#-----------------------------------------------------------------------------------
 	
-	# Detección del color celeste
-	maskCeleste = cv2.inRange(frameHSV, celesteBajo, celesteAlto)
-	maskCeleste = cv2.erode(maskCeleste,None,iterations = 1)
-	maskCeleste = cv2.dilate(maskCeleste,None,iterations = 2)
-	maskCeleste = cv2.medianBlur(maskCeleste, 13)
-	cnts,_ = cv2.findContours(maskCeleste, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+	# Detección del color violeta
+	maskVioleta = cv2.inRange(frameHSV, violetaBajo, violetaAlto)
+	maskVioleta = cv2.erode(maskVioleta,None,iterations = 1)
+	maskVioleta = cv2.dilate(maskVioleta,None,iterations = 2)
+	maskVioleta = cv2.medianBlur(maskVioleta, 13)
+	cnts,_ = cv2.findContours(maskVioleta, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
 	cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:1]
 
 	for c in cnts:
@@ -138,8 +138,8 @@ while True:
 	frame = cv2.bitwise_and(frame,frame,mask=thInv)
 	frame = cv2.add(frame,imAux)
 	
-	#cv2.imshow('maskCeleste', maskCeleste)
-	cv2.imshow('imAux',imAux)
+	cv2.imshow('maskVioleta', maskVioleta)
+	#cv2.imshow('imAux',imAux)
 	cv2.imshow('frame', frame)
 	
 	k = cv2.waitKey(1)
