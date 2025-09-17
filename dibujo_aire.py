@@ -18,9 +18,46 @@ class HandDrawingApp:
         self.grosor_actual = 7
         self.nombre_grosor = 'medio'
         self.color_changed = False
-        self.last_color_change_ts = 0  # timestamp para cooldown
+        self.last_color_change_ts = 0
         self.color_cycle = ['blue','green','red','yellow']
         self.color_index = 0
+
+    def set_stroke_size(self, size_name: str):
+        """Actualiza el grosor del trazo y resalta el botón correspondiente.
+
+        size_name: 'chico' | 'medio' | 'grande'
+        Mantiene:
+          - self.grosor_actual (valor numérico usado por cv2.line)
+          - self.nombre_grosor (etiqueta actual)
+          - self.grosor (diccionario usado para dibujar el borde de los botones de grosor)
+        """
+        mapping_valor = {
+            'chico': 5,
+            'medio': 7,
+            'grande': 11
+        }
+        if size_name not in mapping_valor:
+            return
+        self.nombre_grosor = size_name
+        self.grosor_actual = mapping_valor[size_name]
+        # Resalta el seleccionado con grosor 6 en su recuadro y deja 1 en los demás
+        self.grosor['chico'] = 6 if size_name == 'chico' else 1
+        self.grosor['medio'] = 6 if size_name == 'medio' else 1
+        self.grosor['grande'] = 6 if size_name == 'grande' else 1
+
+    def set_color(self, color_name: str, highlight: int = 6, base: int = 2):
+        """Cambia el color actual y ajusta SOLO el grosor del borde de los cuadros de color.
+
+        color_name: 'blue' | 'green' | 'red' | 'yellow'
+        highlight: grosor del borde para el color seleccionado
+        base: grosor del borde para los no seleccionados
+        No modifica el grosor del trazo (self.grosor_actual).
+        """
+        if color_name not in self.colores:
+            return
+        self.color_actual = color_name
+        for c in self.grosorColor.keys():
+            self.grosorColor[c] = highlight if c == color_name else base
 
     @staticmethod
     def is_finger_up(hand_landmarks, finger_tip, finger_mcp):
@@ -40,52 +77,20 @@ class HandDrawingApp:
             cv2.putText(frame, 'Index Finger Up', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             y_offset = 10
             if 10 < x < 60 and y_offset < y < 50 + y_offset:
-                print("Color azul seleccionado, " + self.color_actual)
-                self.color_actual = "blue"
-                self.grosorColor["blue"] = 6
-                self.grosorColor["green"] = 2
-                self.grosorColor["red"] = 2
-                self.grosorColor["yellow"] = 2
+                self.set_color('blue')
             if 70 < x < 120 and y_offset < y < 50 + y_offset:
-                print("Color verde seleccionado " + self.color_actual)
-                self.color_actual = "green"
-                self.grosorColor["blue"] = 2
-                self.grosorColor["green"] = 6
-                self.grosorColor["red"] = 2
-                self.grosorColor["yellow"] = 2
+                self.set_color('green')
             if 130 < x < 180 and y_offset < y < 50 + y_offset:
-                print("Color rojo seleccionado " + self.color_actual)
-                self.color_actual = "red"
-                self.grosorColor["blue"] = 2
-                self.grosorColor["green"] = 2
-                self.grosorColor["red"] = 6
-                self.grosorColor["yellow"] = 2
+                self.set_color('red')
             if 190 < x < 240 and y_offset < y < 50 + y_offset:
-                print("Color amarillo seleccionado " + self.color_actual)
-                self.color_actual = "yellow"
-                self.grosorColor["blue"] = 2
-                self.grosorColor["green"] = 2
-                self.grosorColor["red"] = 2
-                self.grosorColor["yellow"] = 6
+                self.set_color('yellow')
                 
             if 490 < x < 540 and 0 < y < 50:
-                print("grosor seleccionado " + self.nombre_grosor)
-                self.grosor_actual = 5 # Grosor del lápiz/marcador virtual
-                self.grosor["chico"] = 6
-                self.grosor["medio"] = 1
-                self.grosor["grande"] = 1
+                self.set_stroke_size('chico')
             if 540 < x < 590 and 0 < y < 50:
-                print("grosor seleccionado " + self.nombre_grosor)
-                self.grosor_actual = 7 # Grosor del lápiz/marcador virtual
-                self.grosor["chico"] = 1
-                self.grosor["medio"] = 6
-                self.grosor["grande"] = 1
+                self.set_stroke_size('medio')
             if 590 < x < 640 and 0 < y < 50:
-                print("grosor seleccionado " + self.nombre_grosor)
-                self.grosor_actual = 11 # Grosor del lápiz/marcador virtual
-                self.grosor["chico"] = 1
-                self.grosor["medio"] = 1
-                self.grosor["grande"] = 6    
+                self.set_stroke_size('grande')    
             if 300 < x < 400 and 0 < y < 50:
                 cv2.rectangle(frame,(300,0),(400,50), self.colores["clear"],2)
                 cv2.putText(frame,'Limpiar',(320,20),6,0.6,self.colores["clear"],2,cv2.LINE_AA)
@@ -95,61 +100,30 @@ class HandDrawingApp:
             self.drawing = False
             self.prev_x, self.prev_y = None, None
 
-    def colour_change(self, hand_landmarks, finger_states):
-        # Cambiar color cuando el pulgar se mueve hacia la derecha (movimiento lateral)
-        """Detección de gestos para cambio de color.
-        Gestos soportados:
-        1. Pinch (pulgar + índice acercados) -> cambia color inmediato.
-        2. Pulgar extendido horizontal (movimiento lateral cruzando umbral X) con cooldown.
-        """
-        # Utilidades locales
-        thumb_tip = hand_landmarks[mp.solutions.hands.HandLandmark.THUMB_TIP]
-        index_tip = hand_landmarks[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
-        thumb_ip = hand_landmarks[mp.solutions.hands.HandLandmark.THUMB_IP]
+    def colour_change(self, finger_states):
         import time
         now = time.time()
 
-        def advance_color():
+        paz = finger_states['index'] and finger_states['middle'] and not finger_states['ring'] and not finger_states['pinky']
+
+        if paz and not self.color_changed:
+            # avanzar color
             self.color_index = (self.color_index + 1) % len(self.color_cycle)
             self.color_actual = self.color_cycle[self.color_index]
             print(f"Color cambiado a: {self.color_actual}")
-
-        # 1. Gesto pinch: distancia euclidiana normalizada pequeña entre pulgar e índice
-        dx = thumb_tip.x - index_tip.x
-        dy = thumb_tip.y - index_tip.y
-        dist = (dx*dx + dy*dy) ** 0.5
-        if dist < 0.04:  # tolerancia ajustable
-            if now - self.last_color_change_ts > 0.5:  # cooldown pinch
-                advance_color()
-                self.last_color_change_ts = now
-            return
-
-        # 2. Pulgar extendido horizontal: comparar TIP respecto a IP (o MCP) para dirección
-        # Detectar cruce de un umbral de X hacia la derecha (para imagen espejada se puede invertir)
-        thumb_x = thumb_tip.x
-        # Establecemos dos zonas: izquierda (<0.30) y derecha (>0.70). Cambio al cruzar derecha y regresar.
-        if finger_states['thumb'] and not finger_states['index'] and not finger_states['middle'] and not finger_states['ring'] and not finger_states['pinky']:
-            if thumb_x > 0.70 and not self.color_changed:
-                advance_color()
-                self.color_changed = True
-                self.last_color_change_ts = now
-            elif thumb_x < 0.30 and self.color_changed:
-                # reset al volver izquierda
-                self.color_changed = False
-            print("entra el thumb")
-            # Verificar si el pulgar está en el rango derecho de la pantalla para cambiar color
-            if finger_states['thumb']:  # Si el pulgar está en el 70% hacia la derecha
-                print("thumb true")
-                print(self.color_actual)
-                if not self.color_changed:
-                    if self.color_actual == 'blue': self.color_actual = 'green'
-                    elif self.color_actual == 'green': self.color_actual = 'red'
-                    elif self.color_actual == 'red': self.color_actual = 'yellow'
-                    elif self.color_actual == 'yellow': self.color_actual = 'blue'
-                    print(f"Color cambiado a: {self.color_actual}")
-                    self.color_changed = True
-            else:
-                self.color_changed = False  # Resetear cuando el pulgar no está en el rango
+            self.color_changed = True
+            self.last_color_change_ts = now
+            if self.color_actual == "blue":
+                self.set_color('blue')
+            elif self.color_actual == "green":
+                self.set_color('green')
+            elif self.color_actual == "red":
+                self.set_color('red')
+            elif self.color_actual == "yellow":
+                self.set_color('yellow')
+        elif not paz:
+            # reset para permitir otra activación
+            self.color_changed = False
                 
     def run(self):
         with self.mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.9, max_num_hands=1) as hands:
@@ -195,11 +169,17 @@ class HandDrawingApp:
                             'pinky': self.is_finger_up(hand_landmarks.landmark, self.mp_hands.HandLandmark.PINKY_TIP, self.mp_hands.HandLandmark.PINKY_MCP)
                         }
                         self.process_frame(frame, hand_landmarks.landmark, finger_states)
-                        self.colour_change(hand_landmarks.landmark, finger_states)
+                        self.colour_change(finger_states)
+                
+                imAuxGray = cv2.cvtColor(self.im_aux, cv2.COLOR_BGR2GRAY)
+                _, imAuxMask = cv2.threshold(imAuxGray, 20, 255, cv2.THRESH_BINARY)
+                thInv = cv2.bitwise_not(imAuxMask)
+                frame = cv2.bitwise_and(frame, frame, mask=thInv)
+                frame = cv2.add(frame, self.im_aux)
                 
                 # Redimensionar las ventanas para agrandarlas
-                frame_resized = cv2.resize(frame, (800, 500))  # Duplica el tamaño (de 640x480 a 960x720)
-                im_aux_resized = cv2.resize(self.im_aux, (800, 500))
+                frame_resized = cv2.resize(frame, (1200, 750))  # Duplica el tamaño (de 640x480 a 960x720)
+                im_aux_resized = cv2.resize(self.im_aux, (800, 500))               
                 
                 cv2.imshow('Hand Drawing App', frame_resized)
                 cv2.imshow('Drawing Canvas', im_aux_resized)
