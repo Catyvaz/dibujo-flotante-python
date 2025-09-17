@@ -15,7 +15,8 @@ class HandDrawingApp:
         self.grosorColor = {'blue': 6, 'green': 1, 'red': 1, 'yellow': 1}
         self.grosor = {'chico': 1, 'medio': 6, 'grande': 1}
         self.color_actual = 'blue'
-        self.grosor_actual = 'medio'
+        self.grosor_actual = 7
+        self.nombre_grosor = 'medio'
 
     @staticmethod
     def is_finger_up(hand_landmarks, finger_tip, finger_mcp):
@@ -27,7 +28,7 @@ class HandDrawingApp:
             x = int(hand_landmarks[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP].x * frame.shape[1])
             y = int(hand_landmarks[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP].y * frame.shape[0])
             if self.drawing and self.prev_x is not None and self.prev_y is not None:
-                cv2.line(self.im_aux, (self.prev_x, self.prev_y), (x, y), self.colores[self.color_actual], self.grosor[self.grosor_actual])
+                cv2.line(self.im_aux, (self.prev_x, self.prev_y), (x, y), self.colores[self.color_actual], self.grosor_actual)
             self.drawing = True
             self.prev_x, self.prev_y = x, y
             cv2.putText(frame, 'Index Finger Up', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -62,26 +63,34 @@ class HandDrawingApp:
                 self.grosorColor["yellow"] = 6
                 
             if 490 < x < 540 and 0 < y < 50:
-                self.grosor_actual = "chico" # Grosor del lápiz/marcador virtual
+                print("grosor seleccionado " + self.nombre_grosor)
+                self.grosor_actual = 5 # Grosor del lápiz/marcador virtual
                 self.grosor["chico"] = 6
                 self.grosor["medio"] = 1
                 self.grosor["grande"] = 1
-            if 540 < x < 590 and 0 < "medio" < 50:
+            if 540 < x < 590 and 0 < y < 50:
+                print("grosor seleccionado " + self.nombre_grosor)
                 self.grosor_actual = 7 # Grosor del lápiz/marcador virtual
                 self.grosor["chico"] = 1
                 self.grosor["medio"] = 6
                 self.grosor["grande"] = 1
             if 590 < x < 640 and 0 < y < 50:
-                self.grosor_actual = "grande" # Grosor del lápiz/marcador virtual
+                print("grosor seleccionado " + self.nombre_grosor)
+                self.grosor_actual = 11 # Grosor del lápiz/marcador virtual
                 self.grosor["chico"] = 1
                 self.grosor["medio"] = 1
-                self.grosor["grande"] = 6
+                self.grosor["grande"] = 6    
+            if 300 < x < 400 and 0 < y < 50:
+                cv2.rectangle(frame,(300,0),(400,50), self.colores["clear"],2)
+                cv2.putText(frame,'Limpiar',(320,20),6,0.6,self.colores["clear"],2,cv2.LINE_AA)
+                cv2.putText(frame,'pantalla',(320,40),6,0.6,self.colores["clear"],2,cv2.LINE_AA)
+                self.im_aux = np.zeros(frame.shape,dtype=np.uint8)
         else:
             self.drawing = False
             self.prev_x, self.prev_y = None, None
 
     def run(self):
-        with self.mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5, max_num_hands=1) as hands:
+        with self.mp_hands.Hands(min_detection_confidence=0.8, min_tracking_confidence=0.9, max_num_hands=1) as hands:
             while self.cap.isOpened():
                 ret, frame = self.cap.read()
                 if not ret:
@@ -124,8 +133,12 @@ class HandDrawingApp:
                         }
                         self.process_frame(frame, hand_landmarks.landmark, finger_states)
                 
-                cv2.imshow('Hand Drawing App', frame)
-                cv2.imshow('Drawing Canvas', self.im_aux)
+                # Redimensionar las ventanas para agrandarlas
+                frame_resized = cv2.resize(frame, (800, 500))  # Duplica el tamaño (de 640x480 a 960x720)
+                im_aux_resized = cv2.resize(self.im_aux, (800, 500))
+                
+                cv2.imshow('Hand Drawing App', frame_resized)
+                cv2.imshow('Drawing Canvas', im_aux_resized)
                 if cv2.waitKey(1) & 0xFF == 27:
                     break
         self.cap.release()
